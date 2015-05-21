@@ -1,0 +1,14 @@
+{
+	"name": "cat-test-compiler",
+	"version": "0.0.1",
+	"description": "Transforms JavaScript files modelling test cases into CAT parsable files",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/NiklasGollenstede/catTestCompiler.git"
+	},
+	"dependencies": {
+		"traceur": "latest",
+		"mkdirp": "latest",
+		"command-line-args": "latest"
+	}
+}
