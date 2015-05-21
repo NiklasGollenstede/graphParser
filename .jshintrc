@@ -4,6 +4,7 @@
 	"-W006": false, // Confusing minuses.
 	"-W030": false, // Expected an assignment or function call and instead saw an expression.
 	"-W054": false, // The Function constructor is a form of eval.
+	"-W058": false, // Missing '()' invoking a constructor.
 	"-W093": false, // Did you mean to return a conditional instead of an assignment?
 
 	"curly": true,

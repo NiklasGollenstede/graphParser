@@ -84,15 +84,20 @@ export const FS = (() => {
 	return Object.freeze(FS);
 })();
 
+export const log = (...args) => (console.log(...args), args[args.length - 1]);
+
 export const sleep = ms => new Promise(done => setTimeout(done, ms));
 
 export const exitWith = (...args) => (console.log('FATAL:', ...args), process.exit(-1));
 
-export const Counter = (c = 0) => Object.assign(() => ++c, { get: () => c, });
+export const Counter = function(c = 0) { return Object.assign(() => ++c, { get: () => c, }); };
 
-export const log = (...args) => (console.log(...args), args[args.length - 1]);
+export const Timer = function([s1, ns1] = process.hrtime()) {
+	 return ([s2, ns2] = process.hrtime()) => (s2 - s1) * 1e9 + (ns2 - ns1);
+};
+	// Timer = (s1 = performance.now()) => (s2 = performance.now()) => (s2 - s1);
 
-export const NameSpace = () => {
+export const NameSpace = function() {
 	let map = new WeakMap();
 	return key => {
 		let value = map.get(key);
@@ -104,12 +109,12 @@ export const NameSpace = () => {
 	};
 };
 
-export const Marker = () => {
+export const Marker = function() {
 	let map = new WeakMap();
-	return key => {
-		let value = map.get(key);
-		map.set(key, true);
-		return !!value;
+	return (key, ...now) => {
+		let old = map.get(key);
+		now.length && map.set(key, now[0]);
+		return old;
 	};
 };
 
