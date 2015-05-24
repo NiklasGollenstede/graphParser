@@ -16,6 +16,30 @@ const parseGraph = lines => {
 	return graph;
 };
 
+const floydWarshall = (a, end) => {
+	let N = a.length;
+	end = Math.min(N, end || N);
+
+	for (let d = 0; d < end; ++d) {
+		for (let y = 0; y < N; ++y) {
+			for (let x = 0; x < N; ++x) {
+				if (a[x][d] !== 0 && a[d][y] !== 0) {
+					a[x][y] = Math.min(a[x][y] || Infinity, a[x][d]- -a[d][y]);
+				}
+			}
+		}
+	}
+	return a;
+};
+
+const inWidth = (node, cb, mark = new Marker) =>  {
+	let queue = [ node ];
+	let i = 0; do {
+		!mark(queue[i], true) && queue.push(...queue[i].filter(node => !mark(node)));
+	} while (++i < queue.length);
+	queue.forEach(cb);
+};
+
 const inDepth = (node, cb, mark = new Marker) => (!mark(node, true)) && cb(node) === node.forEach(
 	node => inDepth(node, cb, mark)
 );
@@ -28,7 +52,7 @@ const inDepthAsync = (node, cb, mark = new Marker) => new Promise((resolve, reje
 	setImmediate(resolve);
 });
 
-export const main = (dir, { files: { 0: src, }, count: count_nodes, con_comp, degree, distance, }) => spawn(function*() {
+export const main = (dir, { files: { 0: src, }, count: count_nodes, con_comp, degree, distance: find_distance, color: color_greedy }) => spawn(function*() {
 	let total = new Timer;
 	let mode = Path.basename(dir, '.js');
 	dir = Path.dirname(dir);
@@ -53,26 +77,27 @@ export const main = (dir, { files: { 0: src, }, count: count_nodes, con_comp, de
 		if (lines.pop() !== 'end') {
 			throw 'File '+ file +'didn\'t end with "end"';
 		}
+		//let weights = lines.map(line => line.match(/\d+/g));
 
-		let graph = parseGraph(lines);
+		const graph = parseGraph(lines);
 		graph.name = Path.basename(file, '.txt');
 
 		if (count_nodes) { // # of nodes
-			let count = new Counter;
-			let mark = new Marker;
+			const count = new Counter;
+			const mark = new Marker;
 			yield Promise.all(graph.map(node => inDepthAsync(node, count, mark)));
 			console.log('Graph '+ graph.name +' has '+ count.get() +' nodes');
 		}
 
 		if (degree) { // max degree
-			let deg = graph.reduce((max, node) => Math.max(max, node.length), 0);
+			const deg = graph.reduce((max, node) => Math.max(max, node.length), 0);
 			console.log('Max deg. of '+ graph.name +' is '+ deg);
 		}
 
 		if (con_comp) { // # and max size of connected compoenents
 			let number = 0;
 			let size = 0;
-			let mark = new Marker;
+			const mark = new Marker;
 			for (let node of graph) {
 				let count = Counter(0);
 				yield inDepthAsync(node, count, mark);
@@ -83,10 +108,10 @@ export const main = (dir, { files: { 0: src, }, count: count_nodes, con_comp, de
 			console.log('The largest has '+ size +' nodes');
 		}
 
-		if (distance !== undefined) { // path length from v to w (and all others)
+		if (find_distance !== undefined) { // path length from v to w (and all others)
 			let v, w, expected;
-			if (typeof distance === 'string') {
-				[ v, w, expected ] = distance.match(/\d+/g);
+			if (typeof find_distance === 'string') {
+				[ v, w, expected ] = find_distance.match(/\d+/g);
 			} else {
 				[ v, w, expected ] = {
 					EX10: [ 6, 10, 2 ],
@@ -99,33 +124,44 @@ export const main = (dir, { files: { 0: src, }, count: count_nodes, con_comp, de
 			v = graph[v - 1];
 			w = graph[w - 1];
 
-			let length = new Marker;
-			length(v, 0);
-			let done = new Marker;
-			let inf = { inf: Infinity, };
-			length(inf, Infinity);
+			const distance = new Marker;
+			distance(v, 0);
+			const done = new Marker;
+			const inf = { inf: Infinity, };
+			distance(inf, Infinity);
 
 			while (true) {
-				let node = graph.reduce((o, n) => (!done(n) && (length(n) < length(o))) ? n : o, inf);
-				// console.log('processing', node);
-				if (node == inf) {
-					break;
-				}
-				let mayBe = length(node);
-				++mayBe;
-				// console.log('mayBe', mayBe);
+				const node = graph.reduce((o, n) => (!done(n) && (distance(n) < distance(o))) ? n : o, inf); // find node with smalest distance() thats not done() yet
+				if (node == inf) { break; } // no such node
+				const mayBe = distance(node) + 1;
+
 				for (let mate of node) {
-					// console.log('mate', mate);
-					if ((length(mate) || Infinity) > mayBe) {
-						length(mate, mayBe);
+
+					if ((distance(mate) || Infinity) > mayBe) {
+						distance(mate, mayBe);
 					}
 				}
 				done(node, true);
 			}
 
-			//console.log(graph.map(node => [ node.id, ':', length(node) ]).sort((a, b) => (a[2] || Infinity) - (b[2] || Infinity)).map(a => a.join(' ')).join('\n'));
+			//console.log(graph.map(node => [ node.id, ':', distance(node) ]).sort((a, b) => (a[2] || Infinity) - (b[2] || Infinity)).map(a => a.join(' ')).join('\n'));
 
-			console.log('Distance between node '+ v.id +' and '+ w.id +' in '+ graph.name +' is '+ length(w) +', '+ ((length(w) == expected) ? 'as expected' : ('but should be '+ expected)));
+			console.log('Distance between node '+ v.id +' and '+ w.id +' in '+ graph.name +' is '+ distance(w) +', '+ ((distance(w) == expected) ? 'as expected' : ('but should be '+ expected)));
+		}
+
+		if (color_greedy) {
+			const node = graph.reduce((o, n) => (n.length >= o.length) ? n : o, [ ]); // find node with the most outgoing edges
+			const color = new Marker;
+			color(node, 1);
+			let maxColor = 0;
+			inWidth(node, node => {
+				const colors = node.map(node => color(node)).filter(color => color).sort((a, b) => a - b);
+				let i = 1; while(i == colors[i - 1]) { ++i; }
+				// console.log('node-'+ node.id +'\'s neighbours have colors '+ colors +' so node got', i);
+				color(node, i);
+				i > maxColor && (maxColor = i);
+			});
+			console.log('Greedy coloring of '+ graph.name +' resulted in a '+ maxColor +'-coloring');
 		}
 
 	})));
